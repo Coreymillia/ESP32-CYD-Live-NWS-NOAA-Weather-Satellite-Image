@@ -119,9 +119,6 @@ The original **WeatherSatelliteImage** Arduino sketch that inspired this project
 
 > Original designed for the FengYun FY-4B geostationary satellite over Asia. Adapted here for NOAA GOES-East and the CYD hardware platform.
 
-### [AntiPMatrix](https://github.com) — CYD Framework Reference
-The CYD board pin configuration, PlatformIO setup, and proven working display/SPI configuration used in this project were derived from the **AntiPMatrix** CYD project. The ILI9341 hardware SPI pinout, backlight GPIO, and library versions were taken directly from this reference.
-
 ---
 
 ## Conversion Notes
