@@ -51,15 +51,15 @@ WeatherCore/
    pio run --target upload
    ```
 
-3. **On every boot the device enters setup mode:**
+3. **On first boot the device enters setup mode:**
    - The display shows step-by-step instructions
    - An open WiFi access point called **`WeatherCore_Setup`** is created
    - Connect your phone or PC to that network, then open **`192.168.4.1`** in your browser
    - Enter your WiFi credentials, choose a NOAA satellite view, and tap **Save & Connect**
    - The portal closes, the device connects to your WiFi, and the satellite image appears
 
-4. **Subsequent boots:** The portal reopens so you can change settings if needed.  
-   If you want to keep everything as-is, tap **No Changes** to skip straight to the satellite viewer.
+4. **On subsequent boots** the device skips the portal and connects automatically using saved settings.  
+   To change your WiFi or camera, **hold the BOOT button** during the first 3 seconds after power-on — the setup portal will reopen.
 
 > ⚠️ ESP32 only supports **2.4 GHz** WiFi networks.
 
@@ -89,12 +89,12 @@ The satellite view is selected at runtime via the captive portal. Available opti
 |---|---|---|
 | **GOES-East CONUS** *(default)* | GOES-16 | Full continental US, eastern focus |
 | **GOES-West CONUS** | GOES-18 | Full continental US, western focus |
-| **GOES-East Caribbean** | GOES-16 | Gulf of Mexico + Caribbean |
-| **GOES-East Alaska** | GOES-18 | Alaska region |
-| **GOES-West Hawaii** | GOES-18 | Hawaii and surrounding Pacific |
+| **Eastern US** | GOES-19 | Eastern seaboard + Appalachians |
+| **Gulf of Mexico** | GOES-19 | Gulf Coast, Mexico, Central America |
+| **Caribbean** | GOES-19 | Gulf of Mexico + Caribbean Sea |
+| **Alaska** | GOES-18 | Alaska region |
 
-All views use a 416×250 GeoColor JPEG cropped to fit the 320×240 display.  
-To change your view, simply reboot the device and select a different option in the portal.
+To change your view, reboot the device and hold the BOOT button within 3 seconds to reopen the portal.
 
 ---
 

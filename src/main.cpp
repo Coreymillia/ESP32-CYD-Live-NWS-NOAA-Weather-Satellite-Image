@@ -1,18 +1,12 @@
 // WeatherCore - Weather Satellite Image for CYD (Cheap Yellow Display)
-// Source: NOAA GOES-East CONUS (Americas) via cdn.star.nesdis.noaa.gov
+// Source: NOAA GOES satellite imagery via cdn.star.nesdis.noaa.gov
 // Display: ILI9341 320x240 via HWSPI (CYD standard pinout)
-
-const char *SSID_NAME = "your-ssid";
-const char *SSID_PASSWORD = "your-password";
-
-// NOAA GOES-East CONUS GeoColor 416x250 - small enough for ESP32 heap (~30-50KB)
-// Cropped to fill 320x240: offset (-48, -5)
-const char *SATELLITE_URL = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/416x250.jpg";
+// Setup: First boot opens WeatherCore_Setup AP for configuration.
+//        On subsequent boots, hold the BOOT button during startup to re-enter setup.
+//        WiFi credentials and camera choice are persisted to NVS flash.
 
 #include <Arduino.h>
 #include <WiFi.h>
-
-char url[256];
 
 #include "HTTPS.h"
 #include "JPEG.h"
@@ -22,6 +16,7 @@ char url[256];
  * ILI9341 320x240 landscape via hardware SPI
  ******************************************************************************/
 #include <Arduino_GFX_Library.h>
+#include "Portal.h"
 
 #define GFX_BL 21  // CYD backlight pin
 
@@ -68,21 +63,48 @@ void setup() {
   pinMode(GFX_BL, OUTPUT);
   digitalWrite(GFX_BL, HIGH);
 
-  // Connect to WiFi
+  // Boot button is GPIO 0 (active LOW)
+  pinMode(0, INPUT_PULLUP);
+
+  // Load saved settings from flash
+  wcLoadSettings();
+
+  bool showPortal = !wc_has_settings;  // always open portal on first boot
+
+  if (!showPortal) {
+    // Settings exist — give a 3-second window to hold BOOT button to re-enter setup
+    showStatus("Hold BOOT button to change settings...");
+    for (int i = 0; i < 30 && !showPortal; i++) {
+      if (digitalRead(0) == LOW) showPortal = true;
+      delay(100);
+    }
+  }
+
+  if (showPortal) {
+    wcInitPortal();
+    while (!portalDone) {
+      wcRunPortal();
+      delay(5);
+    }
+    wcClosePortal();
+  }
+
+  // Connect to WiFi using saved credentials
+  gfx->fillScreen(RGB565_BLACK);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(SSID_NAME, SSID_PASSWORD);
+  WiFi.begin(wc_wifi_ssid, wc_wifi_pass);
 
   int dots = 0;
   unsigned long wifiStart = millis();
   while (WiFi.status() != WL_CONNECTED) {
     if (millis() - wifiStart > 30000) {
       char errMsg[60];
-      snprintf(errMsg, sizeof(errMsg), "WiFi failed: \"%s\"", SSID_NAME);
+      snprintf(errMsg, sizeof(errMsg), "WiFi failed: \"%s\"", wc_wifi_ssid);
       showStatus(errMsg);
       while (true) delay(1000);
     }
     delay(500);
-    char msg[40];
+    char msg[48];
     snprintf(msg, sizeof(msg), "Connecting to WiFi%.*s", (dots % 4) + 1, "....");
     showStatus(msg);
     dots++;
@@ -99,14 +121,20 @@ void loop() {
     Serial.printf("Heap: %d, PSRAM: %d\n", ESP.getFreeHeap(), ESP.getFreePsram());
     showStatus("Fetching GOES satellite image...");
 
-    https_get_response_buf(SATELLITE_URL);
+    https_get_response_buf(CAMERAS[wc_camera_idx].url);
 
     if (https_response_buf && https_response_len > 0 &&
         jpeg.openRAM(https_response_buf, https_response_len, JPEGDraw)) {
       showStatus("Decoding...");
       jpeg.setPixelType(RGB565_BIG_ENDIAN);
-      // 416x250 source, no scaling needed. Crop to 320x240: offset (-48,-5).
-      jpeg.decode(-48 /* x */, -5 /* y */, 0 /* no scaling */);
+      // For square (250x250) views the image is narrower than the screen —
+      // clear the side bars so old image pixels don't show through.
+      if (CAMERAS[wc_camera_idx].x_off > 0) {
+        int bar = CAMERAS[wc_camera_idx].x_off;
+        gfx->fillRect(0,              20, bar, gfx->height() - 20, RGB565_BLACK);
+        gfx->fillRect(gfx->width() - bar, 20, bar, gfx->height() - 20, RGB565_BLACK);
+      }
+      jpeg.decode(CAMERAS[wc_camera_idx].x_off, CAMERAS[wc_camera_idx].y_off, 0);
       jpeg.close();
       last_update = millis(); // success: wait 5min before next fetch
     } else {
