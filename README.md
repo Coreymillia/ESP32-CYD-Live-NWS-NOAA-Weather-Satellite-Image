@@ -33,8 +33,9 @@ A live NOAA GOES-East satellite image viewer running on the **CYD (Cheap Yellow 
 WeatherCore/
 ├── platformio.ini
 ├── src/
-│   └── main.cpp          — WiFi, fetch loop, JPEG decode, display
+│   └── main.cpp          — WiFi, portal init, fetch loop, JPEG decode, display
 └── include/
+    ├── Portal.h          — Captive portal: AP setup, web UI, NVS settings persistence
     ├── HTTPS.h           — WiFiClientSecure HTTPS GET with chunked transfer support
     └── JPEG.h            — JPEGDEC instance
 ```
@@ -45,19 +46,24 @@ WeatherCore/
 
 1. **Clone or download** this project and open it in VS Code with PlatformIO installed.
 
-2. **Edit your WiFi credentials** in `src/main.cpp` (lines 5–6):
-   ```cpp
-   const char *SSID_NAME = "YourNetworkName";
-   const char *SSID_PASSWORD = "YourPassword";
-   ```
-   > ⚠️ ESP32 only supports **2.4 GHz** WiFi networks.
-
-3. **Build and upload:**
+2. **Build and upload:**
    ```
    pio run --target upload
    ```
 
-4. The display will show status messages as it boots, connects, and fetches the image.
+3. **On every boot the device enters setup mode:**
+   - The display shows step-by-step instructions
+   - An open WiFi access point called **`WeatherCore_Setup`** is created
+   - Connect your phone or PC to that network, then open **`192.168.4.1`** in your browser
+   - Enter your WiFi credentials, choose a NOAA satellite view, and tap **Save & Connect**
+   - The portal closes, the device connects to your WiFi, and the satellite image appears
+
+4. **Subsequent boots:** The portal reopens so you can change settings if needed.  
+   If you want to keep everything as-is, tap **No Changes** to skip straight to the satellite viewer.
+
+> ⚠️ ESP32 only supports **2.4 GHz** WiFi networks.
+
+> 💾 WiFi credentials and camera choice are saved to flash (NVS) and survive power cycles.
 
 ---
 
@@ -75,38 +81,20 @@ Managed automatically by PlatformIO:
 
 ## Image Source
 
-**NOAA GOES-16 (GOES-East) — CONUS GeoColor**
-`https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/416x250.jpg`
+**NOAA GOES satellite imagery** — free, public, no authentication required, updated every ~5 minutes.
 
-- Free, public, no authentication required
-- Updated approximately every 5 minutes
-- Covers the Continental United States and surrounding region
-- [NOAA GOES Image Viewer](https://www.star.nesdis.noaa.gov/goes/index.php)
+The satellite view is selected at runtime via the captive portal. Available options:
 
-### Changing the satellite view
-
-Edit the `SATELLITE_URL` line in `src/main.cpp` (line ~10) and replace it with any URL from the table below:
-
-```cpp
-// Example: switch to GOES-West for a better view of the western US
-const char *SATELLITE_URL = "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/CONUS/GEOCOLOR/416x250.jpg";
-```
-
-| Satellite | Coverage | URL |
+| Option | Satellite | Coverage |
 |---|---|---|
-| **GOES-East CONUS** *(default)* | Full continental US, eastern focus | `https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/416x250.jpg` |
-| **GOES-West CONUS** | Full continental US, western focus (great for CO, CA, etc.) | `https://cdn.star.nesdis.noaa.gov/GOES18/ABI/CONUS/GEOCOLOR/416x250.jpg` |
-| **GOES-East Full Disk** | Americas + Atlantic, full Earth view | `https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/678x678.jpg` |
-| **GOES-West Full Disk** | Pacific + Americas, full Earth view | `https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/678x678.jpg` |
-| **GOES-East Caribbean** | Gulf of Mexico + Caribbean | `https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/car/GEOCOLOR/416x250.jpg` |
-| **GOES-East Alaska** | Alaska region | `https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/ak/GEOCOLOR/416x250.jpg` |
-| **GOES-West Hawaii** | Hawaii and surrounding Pacific | `https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/hi/GEOCOLOR/416x250.jpg` |
+| **GOES-East CONUS** *(default)* | GOES-16 | Full continental US, eastern focus |
+| **GOES-West CONUS** | GOES-18 | Full continental US, western focus |
+| **GOES-East Caribbean** | GOES-16 | Gulf of Mexico + Caribbean |
+| **GOES-East Alaska** | GOES-18 | Alaska region |
+| **GOES-West Hawaii** | GOES-18 | Hawaii and surrounding Pacific |
 
-> **Note:** The Full Disk URLs use a 678×678 image. For best results with those, change the decode line in `loop()` to:
-> ```cpp
-> jpeg.decode(-179 /* x */, -179 /* y */, JPEG_SCALE_HALF /* options */);
-> ```
-> which scales it to 339×339 and crops to the center of the 320×240 screen.
+All views use a 416×250 GeoColor JPEG cropped to fit the 320×240 display.  
+To change your view, simply reboot the device and select a different option in the portal.
 
 ---
 
@@ -118,6 +106,9 @@ This project is a port and adaptation of the following open-source works:
 The original **WeatherSatelliteImage** Arduino sketch that inspired this project. It targets a different ESP32 board (AXS15231B QSPI 172×640 display) and fetches FY-4B satellite imagery from China's NMC weather service. The core HTTPS fetch logic (`HTTPS.h`) and JPEG decode callback pattern come directly from this project.
 
 > Original designed for the FengYun FY-4B geostationary satellite over Asia. Adapted here for NOAA GOES-East and the CYD hardware platform.
+
+### [AntiPMatrix](https://github.com) — CYD Framework Reference
+The CYD board pin configuration, PlatformIO setup, and proven working display/SPI configuration used in this project were derived from the **AntiPMatrix** CYD project. The ILI9341 hardware SPI pinout, backlight GPIO, and library versions were taken directly from this reference.
 
 ---
 
