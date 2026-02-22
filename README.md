@@ -8,7 +8,7 @@ A live NOAA GOES-East satellite image viewer running on the **CYD (Cheap Yellow 
 
 ## What it does
 
-- Connects to your WiFi network on boot
+- Connects to your WiFi network on boot (AFTER SETTING WIFI)
 - Fetches the latest **NOAA GOES-East CONUS GeoColor** satellite image from `cdn.star.nesdis.noaa.gov`
 - Decodes the JPEG in memory and renders it to the ILI9341 display
 - Refreshes every **5 minutes** (NOAA updates the image at that frequency)
@@ -54,6 +54,7 @@ WeatherCore/
 3. **On first boot the device enters setup mode:**
    - The display shows step-by-step instructions
    - An open WiFi access point called **`WeatherCore_Setup`** is created
+   - IF IT DOES NOT CONNECT AUTOMATICALLY TURN OFF MOBILE DATA AND FOLOW INSTRUCTIONS BELOW
    - Connect your phone or PC to that network, then open **`192.168.4.1`** in your browser
    - Enter your WiFi credentials, choose a NOAA satellite view, and tap **Save & Connect**
    - The portal closes, the device connects to your WiFi, and the satellite image appears
@@ -76,6 +77,7 @@ Managed automatically by PlatformIO:
 | [GFX Library for Arduino](https://github.com/moononournation/Arduino_GFX) @ 1.4.7 | moononournation | ILI9341 display driver |
 | [JPEGDEC](https://github.com/bitbank2/JPEGDEC) | bitbank2 | In-memory JPEG decoding |
 | [XPT2046_Touchscreen](https://github.com/PaulStoffregen/XPT2046_Touchscreen) | paulstoffregen | CYD touch (included for compatibility) |
+TOUCHSCREEN NOT USED.
 
 ---
 
@@ -94,7 +96,8 @@ The satellite view is selected at runtime via the captive portal. Available opti
 | **Caribbean** | GOES-19 | Gulf of Mexico + Caribbean Sea |
 | **Alaska** | GOES-18 | Alaska region |
 
-To change your view, reboot the device and hold the BOOT button within 3 seconds to reopen the portal.
+To change your view, HOLD BOOT BUTTON FOR ABOUT 5 SECONDS WHEN IMAGE IS DISPLAYED 
+OR YOU CAN reboot the device and hold the BOOT button within 3 seconds to reopen the portal.
 
 ---
 
@@ -106,9 +109,6 @@ This project is a port and adaptation of the following open-source works:
 The original **WeatherSatelliteImage** Arduino sketch that inspired this project. It targets a different ESP32 board (AXS15231B QSPI 172×640 display) and fetches FY-4B satellite imagery from China's NMC weather service. The core HTTPS fetch logic (`HTTPS.h`) and JPEG decode callback pattern come directly from this project.
 
 > Original designed for the FengYun FY-4B geostationary satellite over Asia. Adapted here for NOAA GOES-East and the CYD hardware platform.
-
-### [AntiPMatrix](https://github.com) — CYD Framework Reference
-The CYD board pin configuration, PlatformIO setup, and proven working display/SPI configuration used in this project were derived from the **AntiPMatrix** CYD project. The ILI9341 hardware SPI pinout, backlight GPIO, and library versions were taken directly from this reference.
 
 ---
 
