@@ -117,6 +117,27 @@ void setup() {
 unsigned long last_update = 0;
 
 void loop() {
+  // Brief boot button press (GPIO 0) cycles to the next camera view.
+  // The hold-at-startup logic in setup() is entirely separate.
+  if (digitalRead(0) == LOW) {
+    delay(50); // debounce
+    if (digitalRead(0) == LOW) {
+      // Wait for release (up to 1 second — longer than that is a deliberate hold)
+      unsigned long pressStart = millis();
+      while (digitalRead(0) == LOW && millis() - pressStart < 1000) delay(10);
+
+      if (millis() - pressStart < 1000) {
+        // Brief press: cycle to next camera
+        wc_camera_idx = (wc_camera_idx + 1) % NUM_CAMERAS;
+        wcSaveCameraIndex(wc_camera_idx);
+        char msg[48];
+        snprintf(msg, sizeof(msg), "Camera: %s", CAMERAS[wc_camera_idx].name);
+        showStatus(msg);
+        last_update = 0; // trigger immediate fetch
+      }
+    }
+  }
+
   if ((last_update == 0) || ((millis() - last_update) > UPDATE_INTERVAL)) {
     Serial.printf("Heap: %d, PSRAM: %d\n", ESP.getFreeHeap(), ESP.getFreePsram());
     showStatus("Fetching GOES satellite image...");

@@ -52,8 +52,7 @@ WeatherCore/
    ```
 
 3. **On first boot the device enters setup mode:**
-   - The display shows step-by-step instructions (you should be able to just click on AP WeatherCore_Setup and it will open a portal)
-   - If it does not work turn off your mobile data and follow the instructions below
+   - The display shows step-by-step instructions
    - An open WiFi access point called **`WeatherCore_Setup`** is created
    - Connect your phone or PC to that network, then open **`192.168.4.1`** in your browser
    - Enter your WiFi credentials, choose a NOAA satellite view, and tap **Save & Connect**
@@ -107,7 +106,10 @@ This project is a port and adaptation of the following open-source works:
 The original **WeatherSatelliteImage** Arduino sketch that inspired this project. It targets a different ESP32 board (AXS15231B QSPI 172×640 display) and fetches FY-4B satellite imagery from China's NMC weather service. The core HTTPS fetch logic (`HTTPS.h`) and JPEG decode callback pattern come directly from this project.
 
 > Original designed for the FengYun FY-4B geostationary satellite over Asia. Adapted here for NOAA GOES-East and the CYD hardware platform.
-NOTE: Depending on your CYD you may need to invert the display or it is going to show up WHITE. I have not converted one yet. 
+
+### [AntiPMatrix](https://github.com) — CYD Framework Reference
+The CYD board pin configuration, PlatformIO setup, and proven working display/SPI configuration used in this project were derived from the **AntiPMatrix** CYD project. The ILI9341 hardware SPI pinout, backlight GPIO, and library versions were taken directly from this reference.
+
 ---
 
 ## Conversion Notes
