@@ -83,6 +83,15 @@ static void wcSaveSettings(const char *ssid, const char *pass, int camera) {
   wc_has_settings = true;
 }
 
+// Persist only the camera index (called when cycling with the boot button at runtime)
+static void wcSaveCameraIndex(int camera) {
+  Preferences prefs;
+  prefs.begin("weathercore", false);
+  prefs.putInt("camera", camera);
+  prefs.end();
+  wc_camera_idx = camera;
+}
+
 // ---------------------------------------------------------------------------
 // On-screen setup instructions (320x240 landscape)
 // ---------------------------------------------------------------------------
