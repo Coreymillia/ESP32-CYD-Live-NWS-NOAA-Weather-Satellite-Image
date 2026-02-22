@@ -49,7 +49,9 @@ WeatherCore/
 2. **Build and upload:**
    ```
    pio run --target upload
+   
    ```
+If you get a white screen use the INVERTED FILES!!!
 
 3. **On first boot the device enters setup mode:**
    - The display shows step-by-step instructions
