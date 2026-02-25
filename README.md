@@ -55,19 +55,20 @@ WeatherCore/
    ```
    pio run --target upload
    ```
+   If you get a White background then use the INVERTED folders files. 
 
-3. **On first boot the device enters setup mode:**
+4. **On first boot the device enters setup mode:**
    - The display shows step-by-step instructions
    - An open WiFi access point called **`WeatherCore_Setup`** is created
-   - Connect your phone or PC to that network, then open **`192.168.4.1`** in your browser
+   - Connect your phone or PC to that network, then IF CAPTIVE PORTAL DOES NOT OPEN, THEN open **`192.168.4.1`** in your browser
    - Enter your WiFi credentials, choose a NOAA satellite view, and optionally enter your **latitude and longitude** for NWS forecast mode
    - Tap **Save & Connect**
    - The portal closes, the device connects to your WiFi, and the satellite image appears
 
-4. **On subsequent boots** the device skips the portal and connects automatically using saved settings.  
+5. **On subsequent boots** the device skips the portal and connects automatically using saved settings.  
    To change your WiFi or camera, **hold the BOOT button** during the first 3 seconds after power-on — the setup portal will reopen.
 
-5. **To switch modes at runtime**, press the **BOOT button** briefly to cycle through all satellite views and NWS Forecast mode. The selected mode is saved to flash.
+6. **To switch modes at runtime**, press the **BOOT button** briefly to cycle through all satellite views and NWS Forecast mode. The selected mode is saved to flash.
 
 ---
 
@@ -126,9 +127,6 @@ This project is a port and adaptation of the following open-source works:
 The original **WeatherSatelliteImage** Arduino sketch that inspired this project. It targets a different ESP32 board (AXS15231B QSPI 172×640 display) and fetches FY-4B satellite imagery from China's NMC weather service. The core HTTPS fetch logic (`HTTPS.h`) and JPEG decode callback pattern come directly from this project.
 
 > Original designed for the FengYun FY-4B geostationary satellite over Asia. Adapted here for NOAA GOES-East and the CYD hardware platform.
-
-### [AntiPMatrix](https://github.com) — CYD Framework Reference
-The CYD board pin configuration, PlatformIO setup, and proven working display/SPI configuration used in this project were derived from the **AntiPMatrix** CYD project. The ILI9341 hardware SPI pinout, backlight GPIO, and library versions were taken directly from this reference.
 
 ---
 
