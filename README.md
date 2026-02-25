@@ -1,17 +1,21 @@
-# WeatherCore — NOAA GOES Satellite Image for CYD
+# WeatherCore — NOAA GOES Satellite Image + NWS Forecast for CYD
 
-A live NOAA GOES-East satellite image viewer running on the **CYD (Cheap Yellow Display)** ESP32 board. Fetches and displays a fresh satellite image every 5 minutes directly from NOAA's public CDN — no API key required.
+A live NOAA GOES satellite image viewer and NWS text forecast display running on the **CYD (Cheap Yellow Display)** ESP32 board. Fetches and displays a fresh satellite image every 5 minutes and a local NWS forecast every 30 minutes — no API key required.
 
-![CYD displaying NOAA GOES-East CONUS GeoColor satellite image](https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/416x250.jpg)
+| NWS Forecast | GOES Satellite (nighttime) |
+|:---:|:---:|
+| ![NWS forecast showing Tonight: Partly cloudy, low around 29](IMG_20260224_230154.jpg) | ![GOES-East CONUS GeoColor nighttime satellite image](IMG_20260224_230347.jpg) |
 
 ---
 
 ## What it does
 
-- Connects to your WiFi network on boot (AFTER SETTING WIFI)
-- Fetches the latest **NOAA GOES-East CONUS GeoColor** satellite image from `cdn.star.nesdis.noaa.gov`
+- Connects to your WiFi network on boot
+- Fetches the latest **NOAA GOES GeoColor** satellite image from `cdn.star.nesdis.noaa.gov`
 - Decodes the JPEG in memory and renders it to the ILI9341 display
 - Refreshes every **5 minutes** (NOAA updates the image at that frequency)
+- Optionally displays the **NWS text forecast** for your location, refreshed every **30 minutes**
+- Press the **BOOT button** at runtime to cycle through satellite views and NWS forecast mode
 - Shows on-screen status messages throughout (WiFi connecting, fetching, decoding)
 
 ---
@@ -36,6 +40,7 @@ WeatherCore/
 │   └── main.cpp          — WiFi, portal init, fetch loop, JPEG decode, display
 └── include/
     ├── Portal.h          — Captive portal: AP setup, web UI, NVS settings persistence
+    ├── NWSForecast.h     — NWS API fetch, JSON parse, forecast display
     ├── HTTPS.h           — WiFiClientSecure HTTPS GET with chunked transfer support
     └── JPEG.h            — JPEGDEC instance
 ```
@@ -49,20 +54,31 @@ WeatherCore/
 2. **Build and upload:**
    ```
    pio run --target upload
-   
    ```
-If you get a white screen use the INVERTED FILES!!!
 
 3. **On first boot the device enters setup mode:**
    - The display shows step-by-step instructions
    - An open WiFi access point called **`WeatherCore_Setup`** is created
-   - IF IT DOES NOT CONNECT AUTOMATICALLY TURN OFF MOBILE DATA AND FOLOW INSTRUCTIONS BELOW
    - Connect your phone or PC to that network, then open **`192.168.4.1`** in your browser
-   - Enter your WiFi credentials, choose a NOAA satellite view, and tap **Save & Connect**
+   - Enter your WiFi credentials, choose a NOAA satellite view, and optionally enter your **latitude and longitude** for NWS forecast mode
+   - Tap **Save & Connect**
    - The portal closes, the device connects to your WiFi, and the satellite image appears
 
 4. **On subsequent boots** the device skips the portal and connects automatically using saved settings.  
    To change your WiFi or camera, **hold the BOOT button** during the first 3 seconds after power-on — the setup portal will reopen.
+
+5. **To switch modes at runtime**, press the **BOOT button** briefly to cycle through all satellite views and NWS Forecast mode. The selected mode is saved to flash.
+
+---
+
+## NWS Forecast Mode
+
+When **NWS Forecast (Text)** is selected, the device fetches the current forecast period for your location from the [National Weather Service API](https://www.weather.gov/documentation/services-web-api) (`api.weather.gov`) — no API key required.
+
+- Enter your **latitude and longitude** in the setup portal (e.g. `38.71`, `-105.14` for Victor, CO)
+- The forecast period name (e.g. *Tonight*) is shown in cyan; the detailed forecast follows in white
+- Refreshes every **30 minutes**
+- US locations only (NWS coverage)
 
 > ⚠️ ESP32 only supports **2.4 GHz** WiFi networks.
 
@@ -78,8 +94,8 @@ Managed automatically by PlatformIO:
 |---|---|---|
 | [GFX Library for Arduino](https://github.com/moononournation/Arduino_GFX) @ 1.4.7 | moononournation | ILI9341 display driver |
 | [JPEGDEC](https://github.com/bitbank2/JPEGDEC) | bitbank2 | In-memory JPEG decoding |
+| [ArduinoJson](https://arduinojson.org/) | bblanchon | NWS API JSON parsing |
 | [XPT2046_Touchscreen](https://github.com/PaulStoffregen/XPT2046_Touchscreen) | paulstoffregen | CYD touch (included for compatibility) |
-TOUCHSCREEN NOT USED.
 
 ---
 
@@ -98,8 +114,7 @@ The satellite view is selected at runtime via the captive portal. Available opti
 | **Caribbean** | GOES-19 | Gulf of Mexico + Caribbean Sea |
 | **Alaska** | GOES-18 | Alaska region |
 
-To change your view, HOLD BOOT BUTTON FOR ABOUT 5 SECONDS WHEN IMAGE IS DISPLAYED 
-OR YOU CAN reboot the device and hold the BOOT button within 3 seconds to reopen the portal.
+To change your view or switch to NWS forecast mode, press the **BOOT button** briefly at runtime to cycle through all options. To reconfigure WiFi or coordinates, reboot and hold BOOT within 3 seconds to reopen the portal.
 
 ---
 
@@ -111,6 +126,9 @@ This project is a port and adaptation of the following open-source works:
 The original **WeatherSatelliteImage** Arduino sketch that inspired this project. It targets a different ESP32 board (AXS15231B QSPI 172×640 display) and fetches FY-4B satellite imagery from China's NMC weather service. The core HTTPS fetch logic (`HTTPS.h`) and JPEG decode callback pattern come directly from this project.
 
 > Original designed for the FengYun FY-4B geostationary satellite over Asia. Adapted here for NOAA GOES-East and the CYD hardware platform.
+
+### [AntiPMatrix](https://github.com) — CYD Framework Reference
+The CYD board pin configuration, PlatformIO setup, and proven working display/SPI configuration used in this project were derived from the **AntiPMatrix** CYD project. The ILI9341 hardware SPI pinout, backlight GPIO, and library versions were taken directly from this reference.
 
 ---
 
