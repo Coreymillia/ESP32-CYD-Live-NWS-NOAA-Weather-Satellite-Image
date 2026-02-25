@@ -7,6 +7,7 @@
 
 #define NWS_USER_AGENT      "esp32-cyd-weather (github.com/Coreymillia)"
 #define NWS_UPDATE_INTERVAL (30UL * 60UL * 1000UL)  // 30 minutes
+#define NWS_ALERTS_INTERVAL  ( 5UL * 60UL * 1000UL)  //  5 minutes
 
 // gfx is defined in main.cpp
 extern Arduino_GFX *gfx;
@@ -126,5 +127,79 @@ bool nwsFetchAndDisplay(const char *lat, const char *lon) {
   // Detailed forecast: draw RGB565_WHITE → displays as black on white background
   nws_draw_wrapped(detailedForecast, 4, 45, gfx->width() - 8, RGB565_WHITE);
 
+  return true;
+}
+
+// ── NWS Active Alerts ─────────────────────────────────────────────────────────
+// Color scheme for inverted display:
+//   RGB565_BLACK fill  → appears white  (background)
+//   0x07E0 (green) text → appears magenta/red (all-clear header)
+//   0x001F (blue) text  → appears red/orange  (alert header)
+//   0xFFE0 (yellow) text → appears blue       (event name)
+//   RGB565_WHITE text  → appears black        (body)
+bool nwsFetchAndDisplayAlerts(const char *lat, const char *lon) {
+  String url = String("https://api.weather.gov/alerts/active?point=") + lat + "," + lon;
+  String body = nws_https_get(url);
+  if (body.isEmpty()) return false;
+
+  StaticJsonDocument<128> filter;
+  filter["features"][0]["properties"]["event"]    = true;
+  filter["features"][0]["properties"]["headline"] = true;
+
+  DynamicJsonDocument doc(3072);
+  if (deserializeJson(doc, body, DeserializationOption::Filter(filter))) {
+    Serial.println("[NWS] Alerts JSON parse failed");
+    return false;
+  }
+
+  JsonArray features = doc["features"];
+  int alertCount = features.size();
+
+  gfx->fillRect(0, 20, gfx->width(), gfx->height() - 20, RGB565_BLACK);
+
+  if (alertCount == 0) {
+    // 0x07E0 (green) → displays as magenta on inverted, use 0x001F (blue) → red/orange
+    gfx->setTextColor(0x07E0);
+    gfx->setTextSize(2);
+    gfx->setCursor(4, 30);
+    gfx->print("NWS Alerts");
+    gfx->setTextColor(RGB565_WHITE);
+    gfx->setTextSize(1);
+    gfx->setCursor(4, 58);
+    gfx->print("No active alerts");
+    gfx->setCursor(4, 70);
+    gfx->print("for your area.");
+  } else {
+    // Alert count header: 0xF800 (red) → displays as cyan on inverted
+    gfx->setTextColor(0xF800);
+    gfx->setTextSize(2);
+    gfx->setCursor(4, 25);
+    char title[24];
+    snprintf(title, sizeof(title), "%d Alert%s!", alertCount, alertCount > 1 ? "s" : "");
+    gfx->print(title);
+
+    int y = 46;
+    int shown = 0;
+    for (JsonObject feature : features) {
+      if (shown >= 2) break;
+      String event    = feature["properties"]["event"]    | "Unknown Event";
+      String headline = feature["properties"]["headline"] | "";
+
+      // 0xFFE0 (yellow) → displays as blue on inverted (accent for event name)
+      gfx->setTextColor(0xFFE0);
+      gfx->setTextSize(1);
+      gfx->setCursor(4, y);
+      if (event.length() > 35) event = event.substring(0, 34);
+      gfx->print(event);
+      y += 12;
+
+      if (headline.length() > 120) headline = headline.substring(0, 119);
+      y = nws_draw_wrapped(headline, 4, y, gfx->width() - 8, RGB565_WHITE);
+      y += 4;
+      shown++;
+    }
+  }
+
+  Serial.printf("[NWS] Alerts: %d active\n", alertCount);
   return true;
 }

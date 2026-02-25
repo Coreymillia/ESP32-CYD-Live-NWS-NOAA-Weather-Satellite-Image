@@ -145,11 +145,11 @@ void loop() {
   if (digitalRead(0) == LOW) {
     delay(50); // debounce
     if (digitalRead(0) == LOW) {
-      wc_camera_idx = (wc_camera_idx + 1) % (NUM_CAMERAS + 1);
+      wc_camera_idx = (wc_camera_idx + 1) % NUM_MODES;
       wcSaveCameraIndex(wc_camera_idx);
-      if (wc_camera_idx == NUM_CAMERAS) {
-        showStatus("Mode: NWS Forecast");
-      } else {
+      if      (wc_camera_idx == NWS_FORECAST_MODE) showStatus("Mode: NWS Forecast");
+      else if (wc_camera_idx == NWS_ALERTS_MODE)   showStatus("Mode: NWS Alerts");
+      else {
         char msg[48];
         snprintf(msg, sizeof(msg), "Camera: %s", CAMERAS[wc_camera_idx].name);
         showStatus(msg);
@@ -159,11 +159,14 @@ void loop() {
     }
   }
 
-  unsigned long currentInterval = (wc_camera_idx == NUM_CAMERAS) ? NWS_UPDATE_INTERVAL : UPDATE_INTERVAL;
+  unsigned long currentInterval;
+  if      (wc_camera_idx == NWS_ALERTS_MODE)   currentInterval = NWS_ALERTS_INTERVAL;
+  else if (wc_camera_idx == NWS_FORECAST_MODE) currentInterval = NWS_UPDATE_INTERVAL;
+  else                                          currentInterval = UPDATE_INTERVAL;
   if ((last_update == 0) || ((millis() - last_update) > currentInterval)) {
     Serial.printf("Heap: %d, PSRAM: %d\n", ESP.getFreeHeap(), ESP.getFreePsram());
 
-    if (wc_camera_idx == NUM_CAMERAS) {
+    if (wc_camera_idx == NWS_FORECAST_MODE) {
       // ── NWS Forecast mode ──────────────────────────────────────────────────
       showStatus("Fetching NWS forecast...");
       if (nwsFetchAndDisplay(wc_lat, wc_lon)) {
@@ -172,6 +175,16 @@ void loop() {
       } else {
         showStatus("NWS fetch failed - retrying in 60s");
         last_update = millis() - NWS_UPDATE_INTERVAL + 60000;
+      }
+    } else if (wc_camera_idx == NWS_ALERTS_MODE) {
+      // ── NWS Alerts ────────────────────────────────────────────────────────
+      showStatus("Checking NWS alerts...");
+      if (nwsFetchAndDisplayAlerts(wc_lat, wc_lon)) {
+        last_update = millis();
+        drawTimestamp();
+      } else {
+        showStatus("NWS fetch failed - retrying in 60s");
+        last_update = millis() - NWS_ALERTS_INTERVAL + 60000;
       }
     } else {
       // ── GOES satellite image mode ──────────────────────────────────────────

@@ -21,6 +21,8 @@ struct CameraOption {
 
 // CONUS (416x250): crop to fill 320x240 with offset (-48, -5)
 // Square (250x250): center horizontally (35px bars each side), clip 5px from top
+// Full Disk (339x339): center crop to 320x240 (-9, -49)
+// Mesoscale (250x250): same layout as square sectors
 static const CameraOption CAMERAS[] = {
   { "GOES-East CONUS (default)",
     "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/CONUS/GEOCOLOR/416x250.jpg",      -48, -5 },
@@ -34,8 +36,17 @@ static const CameraOption CAMERAS[] = {
     "https://cdn.star.nesdis.noaa.gov/GOES19/ABI/SECTOR/car/GEOCOLOR/250x250.jpg",  35, -5 },
   { "Alaska",
     "https://cdn.star.nesdis.noaa.gov/GOES18/ABI/SECTOR/ak/GEOCOLOR/250x250.jpg",   35, -5 },
+  { "Full Earth Disk",
+    "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/339x339.jpg",          -9,-49 },
+  { "Mesoscale (hi-refresh)",
+    "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/MESO/M1/GEOCOLOR/250x250.jpg",    35, -5 },
 };
-static const int NUM_CAMERAS = 6;
+static const int NUM_CAMERAS = 8;
+
+// NWS text mode indices (beyond satellite cameras)
+#define NWS_FORECAST_MODE (NUM_CAMERAS)      // 8
+#define NWS_ALERTS_MODE   (NUM_CAMERAS + 1)  // 9
+#define NUM_MODES         (NUM_CAMERAS + 2)  // 10 total
 
 // ---------------------------------------------------------------------------
 // Persisted settings (populated by wcInitPortal / wcLoadSettings)
@@ -67,7 +78,7 @@ static void wcLoadSettings() {
   wc_camera_idx = prefs.getInt("camera", 0);
   prefs.end();
 
-  wc_camera_idx = constrain(wc_camera_idx, 0, NUM_CAMERAS);  // NUM_CAMERAS == NWS index
+  wc_camera_idx = constrain(wc_camera_idx, 0, NUM_MODES - 1);
   ssid.toCharArray(wc_wifi_ssid, sizeof(wc_wifi_ssid));
   pass.toCharArray(wc_wifi_pass, sizeof(wc_wifi_pass));
   lat.toCharArray(wc_lat, sizeof(wc_lat));
@@ -201,9 +212,12 @@ static void wcHandleRoot() {
     if (i == wc_camera_idx) html += " selected";
     html += ">" + String(CAMERAS[i].name) + "</option>";
   }
-  html += "<option value='" + String(NUM_CAMERAS) + "'";
-  if (wc_camera_idx == NUM_CAMERAS) html += " selected";
+  html += "<option value='" + String(NWS_FORECAST_MODE) + "'";
+  if (wc_camera_idx == NWS_FORECAST_MODE) html += " selected";
   html += ">&#127777; NWS Forecast (Text)</option>";
+  html += "<option value='" + String(NWS_ALERTS_MODE) + "'";
+  if (wc_camera_idx == NWS_ALERTS_MODE) html += " selected";
+  html += ">&#128680; NWS Alerts</option>";
   html += "</select>"
     "<label>Latitude (for NWS Forecast):</label>"
     "<input type='text' name='lat' value='";
@@ -246,7 +260,10 @@ static void wcHandleSave() {
 
   wcSaveSettings(ssid.c_str(), pass.c_str(), camera, lat.c_str(), lon.c_str());
 
-  const char *modeName = (camera == NUM_CAMERAS) ? "NWS Forecast (Text)" : CAMERAS[camera].name;
+  const char *modeName;
+  if      (camera == NWS_FORECAST_MODE) modeName = "NWS Forecast (Text)";
+  else if (camera == NWS_ALERTS_MODE)   modeName = "NWS Alerts";
+  else                                  modeName = CAMERAS[camera].name;
   String html = "<html><head><meta charset='UTF-8'>"
     "<style>body{background:#001a33;color:#00ccff;font-family:Arial;"
     "text-align:center;padding:40px;}h2{color:#00ffff;}"
