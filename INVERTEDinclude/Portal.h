@@ -43,6 +43,8 @@ static const int NUM_CAMERAS = 6;
 static char wc_wifi_ssid[64] = "";
 static char wc_wifi_pass[64] = "";
 static int  wc_camera_idx    = 0;
+static char wc_lat[16]       = "";
+static char wc_lon[16]       = "";
 static bool wc_has_settings  = false;  // true if SSID was previously saved
 
 // ---------------------------------------------------------------------------
@@ -60,25 +62,34 @@ static void wcLoadSettings() {
   prefs.begin("weathercore", true);
   String ssid = prefs.getString("ssid", "");
   String pass = prefs.getString("pass", "");
+  String lat  = prefs.getString("lat",  "");
+  String lon  = prefs.getString("lon",  "");
   wc_camera_idx = prefs.getInt("camera", 0);
   prefs.end();
 
-  wc_camera_idx = constrain(wc_camera_idx, 0, NUM_CAMERAS - 1);
+  wc_camera_idx = constrain(wc_camera_idx, 0, NUM_CAMERAS);  // NUM_CAMERAS == NWS index
   ssid.toCharArray(wc_wifi_ssid, sizeof(wc_wifi_ssid));
   pass.toCharArray(wc_wifi_pass, sizeof(wc_wifi_pass));
+  lat.toCharArray(wc_lat, sizeof(wc_lat));
+  lon.toCharArray(wc_lon, sizeof(wc_lon));
   wc_has_settings = (ssid.length() > 0);
 }
 
-static void wcSaveSettings(const char *ssid, const char *pass, int camera) {
+static void wcSaveSettings(const char *ssid, const char *pass, int camera,
+                           const char *lat, const char *lon) {
   Preferences prefs;
   prefs.begin("weathercore", false);
-  prefs.putString("ssid", ssid);
-  prefs.putString("pass", pass);
-  prefs.putInt("camera", camera);
+  prefs.putString("ssid",   ssid);
+  prefs.putString("pass",   pass);
+  prefs.putInt   ("camera", camera);
+  prefs.putString("lat",    lat);
+  prefs.putString("lon",    lon);
   prefs.end();
 
   strncpy(wc_wifi_ssid, ssid, sizeof(wc_wifi_ssid) - 1);
   strncpy(wc_wifi_pass, pass, sizeof(wc_wifi_pass) - 1);
+  strncpy(wc_lat, lat, sizeof(wc_lat) - 1);
+  strncpy(wc_lon, lon, sizeof(wc_lon) - 1);
   wc_camera_idx   = camera;
   wc_has_settings = true;
 }
@@ -183,14 +194,25 @@ static void wcHandleRoot() {
     "<input type='password' name='pass' value='";
   html += String(wc_wifi_pass);
   html += "' placeholder='Leave blank if open network' maxlength='63'>"
-    "<label>NOAA Satellite View:</label>"
+    "<label>NOAA Satellite View / Mode:</label>"
     "<select name='camera'>";
   for (int i = 0; i < NUM_CAMERAS; i++) {
     html += "<option value='" + String(i) + "'";
     if (i == wc_camera_idx) html += " selected";
     html += ">" + String(CAMERAS[i].name) + "</option>";
   }
+  html += "<option value='" + String(NUM_CAMERAS) + "'";
+  if (wc_camera_idx == NUM_CAMERAS) html += " selected";
+  html += ">&#127777; NWS Forecast (Text)</option>";
   html += "</select>"
+    "<label>Latitude (for NWS Forecast):</label>"
+    "<input type='text' name='lat' value='";
+  html += String(wc_lat);
+  html += "' placeholder='e.g. 38.8894' maxlength='15'>"
+    "<label>Longitude (for NWS Forecast):</label>"
+    "<input type='text' name='lon' value='";
+  html += String(wc_lon);
+  html += "' placeholder='e.g. -77.0352' maxlength='15'>"
     "<br><button class='btn btn-save' type='submit'>&#128190; Save &amp; Connect</button>"
     "</form>";
   if (wc_has_settings) {
@@ -209,7 +231,9 @@ static void wcHandleSave() {
   String ssid   = portalServer->hasArg("ssid")   ? portalServer->arg("ssid")            : "";
   String pass   = portalServer->hasArg("pass")   ? portalServer->arg("pass")            : "";
   int    camera = portalServer->hasArg("camera") ? portalServer->arg("camera").toInt()  : 0;
-  camera = constrain(camera, 0, NUM_CAMERAS - 1);
+  String lat    = portalServer->hasArg("lat")    ? portalServer->arg("lat")             : "";
+  String lon    = portalServer->hasArg("lon")    ? portalServer->arg("lon")             : "";
+  camera = constrain(camera, 0, NUM_CAMERAS);
 
   if (ssid.length() == 0) {
     portalServer->send(400, "text/html",
@@ -220,15 +244,16 @@ static void wcHandleSave() {
     return;
   }
 
-  wcSaveSettings(ssid.c_str(), pass.c_str(), camera);
+  wcSaveSettings(ssid.c_str(), pass.c_str(), camera, lat.c_str(), lon.c_str());
 
+  const char *modeName = (camera == NUM_CAMERAS) ? "NWS Forecast (Text)" : CAMERAS[camera].name;
   String html = "<html><head><meta charset='UTF-8'>"
     "<style>body{background:#001a33;color:#00ccff;font-family:Arial;"
     "text-align:center;padding:40px;}h2{color:#00ffff;}"
     "p{color:#88aacc;}</style></head><body>"
     "<h2>&#9989; Settings Saved!</h2>"
     "<p>Connecting to <b>" + ssid + "</b>...</p>"
-    "<p>Satellite view: <b>" + String(CAMERAS[camera].name) + "</b></p>"
+    "<p>Satellite view: <b>" + String(modeName) + "</b></p>"
     "<p>You can close this page and disconnect from <b>WeatherCore_Setup</b>.</p>"
     "<p style='color:#445566;font-size:0.85em'>The display will show the satellite image shortly.</p>"
     "</body></html>";

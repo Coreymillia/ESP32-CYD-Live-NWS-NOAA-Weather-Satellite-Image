@@ -11,6 +11,7 @@
 
 #include "HTTPS.h"
 #include "JPEG.h"
+#include "NWSForecast.h"
 
 /*******************************************************************************
  * Display setup - CYD (Cheap Yellow Display) proven working config
@@ -140,56 +141,68 @@ unsigned long last_update    = 0;
 unsigned long last_clock     = 0;
 
 void loop() {
-  // Brief boot button press (GPIO 0) cycles to the next camera view.
-  // The hold-at-startup logic in setup() is entirely separate.
+  // Short press on BOOT (GPIO 0) cycles through all camera views + NWS Forecast.
   if (digitalRead(0) == LOW) {
     delay(50); // debounce
     if (digitalRead(0) == LOW) {
-      // Wait for release (up to 1 second — longer than that is a deliberate hold)
-      unsigned long pressStart = millis();
-      while (digitalRead(0) == LOW && millis() - pressStart < 1000) delay(10);
-
-      if (millis() - pressStart < 1000) {
-        // Brief press: cycle to next camera
-        wc_camera_idx = (wc_camera_idx + 1) % NUM_CAMERAS;
-        wcSaveCameraIndex(wc_camera_idx);
+      wc_camera_idx = (wc_camera_idx + 1) % (NUM_CAMERAS + 1);
+      wcSaveCameraIndex(wc_camera_idx);
+      if (wc_camera_idx == NUM_CAMERAS) {
+        showStatus("Mode: NWS Forecast");
+      } else {
         char msg[48];
         snprintf(msg, sizeof(msg), "Camera: %s", CAMERAS[wc_camera_idx].name);
         showStatus(msg);
-        last_update = 0; // trigger immediate fetch
       }
+      last_update = 0; // trigger immediate fetch
+      while (digitalRead(0) == LOW) delay(10); // wait for release
     }
   }
 
-  if ((last_update == 0) || ((millis() - last_update) > UPDATE_INTERVAL)) {
+  unsigned long currentInterval = (wc_camera_idx == NUM_CAMERAS) ? NWS_UPDATE_INTERVAL : UPDATE_INTERVAL;
+  if ((last_update == 0) || ((millis() - last_update) > currentInterval)) {
     Serial.printf("Heap: %d, PSRAM: %d\n", ESP.getFreeHeap(), ESP.getFreePsram());
-    showStatus("Fetching GOES satellite image...");
 
-    https_get_response_buf(CAMERAS[wc_camera_idx].url);
-
-    if (https_response_buf && https_response_len > 0 &&
-        jpeg.openRAM(https_response_buf, https_response_len, JPEGDraw)) {
-      showStatus("Decoding...");
-      jpeg.setPixelType(RGB565_BIG_ENDIAN);
-      // Clear the full image area before decode to prevent artifacts from
-      // previous images and the NOAA watermark bar at the bottom.
-      gfx->fillRect(0, 20, gfx->width(), gfx->height() - 20, RGB565_BLACK);
-      jpeg.decode(CAMERAS[wc_camera_idx].x_off, CAMERAS[wc_camera_idx].y_off, 0);
-      jpeg.close();
-      last_update = millis();
-      drawTimestamp(); // show time the image was fetched
+    if (wc_camera_idx == NUM_CAMERAS) {
+      // ── NWS Forecast mode ──────────────────────────────────────────────────
+      showStatus("Fetching NWS forecast...");
+      if (nwsFetchAndDisplay(wc_lat, wc_lon)) {
+        last_update = millis();
+        drawTimestamp();
+      } else {
+        showStatus("NWS fetch failed - retrying in 60s");
+        last_update = millis() - NWS_UPDATE_INTERVAL + 60000;
+      }
     } else {
-      char errMsg[60];
-      snprintf(errMsg, sizeof(errMsg), "Fetch failed HTTP:%d len:%d",
-               https_last_http_code, https_response_len);
-      showStatus(errMsg);
-      Serial.println(errMsg);
-      last_update = millis() - UPDATE_INTERVAL + 60000; // retry in 60s
-    }
+      // ── GOES satellite image mode ──────────────────────────────────────────
+      showStatus("Fetching GOES satellite image...");
 
-    if (https_response_buf) {
-      free(https_response_buf);
-      https_response_buf = nullptr;
+      https_get_response_buf(CAMERAS[wc_camera_idx].url);
+
+      if (https_response_buf && https_response_len > 0 &&
+          jpeg.openRAM(https_response_buf, https_response_len, JPEGDraw)) {
+        showStatus("Decoding...");
+        jpeg.setPixelType(RGB565_BIG_ENDIAN);
+        // Clear the full image area before decode to prevent artifacts from
+        // previous images and the NOAA watermark bar at the bottom.
+        gfx->fillRect(0, 20, gfx->width(), gfx->height() - 20, RGB565_BLACK);
+        jpeg.decode(CAMERAS[wc_camera_idx].x_off, CAMERAS[wc_camera_idx].y_off, 0);
+        jpeg.close();
+        last_update = millis();
+        drawTimestamp(); // show time the image was fetched
+      } else {
+        char errMsg[60];
+        snprintf(errMsg, sizeof(errMsg), "Fetch failed HTTP:%d len:%d",
+                 https_last_http_code, https_response_len);
+        showStatus(errMsg);
+        Serial.println(errMsg);
+        last_update = millis() - UPDATE_INTERVAL + 60000; // retry in 60s
+      }
+
+      if (https_response_buf) {
+        free(https_response_buf);
+        https_response_buf = nullptr;
+      }
     }
   }
 
@@ -199,5 +212,5 @@ void loop() {
     last_clock = millis();
   }
 
-  delay(1000);
+  delay(50);
 }
