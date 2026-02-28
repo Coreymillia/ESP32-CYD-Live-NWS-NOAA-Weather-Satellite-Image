@@ -80,6 +80,7 @@ void setup() {
   if (!gfx->begin()) {
     Serial.println("gfx->begin() failed!");
   }
+  gfx->invertDisplay(true); // Fix for CYDs with inverted display hardware
   gfx->fillScreen(RGB565_BLACK);
 
   // Enable backlight
