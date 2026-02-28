@@ -63,6 +63,21 @@ static const char *iss_compass(float b) {
 }
 
 // ---------------------------------------------------------------------------
+// Elevation angle (degrees) from ground observer to ISS.
+// Positive = above horizon (radio + visual possible), negative = below.
+// Uses the standard formula: elev = atan2(cos(γ) − R/(R+h), sin(γ))
+// where γ = surface_dist / R  (central angle in radians)
+// ---------------------------------------------------------------------------
+static float iss_elevation_deg(float surfDistKm, float altKm) {
+  const float R = 6371.0f;
+  float ca = surfDistKm / R;
+  return atan2f(cosf(ca) - R / (R + altKm), sinf(ca)) * 180.0f / (float)M_PI;
+}
+
+// Track slant distance between updates to detect approaching vs receding
+static float iss_prev_slant = -1.0f;
+
+// ---------------------------------------------------------------------------
 // Fetch live ISS position and draw on screen.
 // API: https://api.wheretheiss.at/v1/satellites/25544  (free, no key, HTTPS)
 // Returns true on success.
@@ -86,10 +101,12 @@ bool issFetchAndDisplay(const char *userLat, const char *userLon) {
   float uLat = atof(userLat);
   float uLon = atof(userLon);
 
-  float surfDist = iss_haversine(uLat, uLon, issLat, issLon);
-  // Slant range: straight-line from ground to ISS (accounting for altitude)
-  float slantDist = sqrtf(surfDist * surfDist + issAlt * issAlt);
-  float brng = iss_bearing(uLat, uLon, issLat, issLon);
+  float surfDist   = iss_haversine(uLat, uLon, issLat, issLon);
+  float slantDist  = sqrtf(surfDist * surfDist + issAlt * issAlt);
+  float brng       = iss_bearing(uLat, uLon, issLat, issLon);
+  float elevDeg    = iss_elevation_deg(surfDist, issAlt);
+  bool  approaching = (iss_prev_slant > 0.0f && slantDist < iss_prev_slant);
+  iss_prev_slant   = slantDist;
 
   // ── Draw ──────────────────────────────────────────────────────────────────
   gfx->fillRect(0, 20, gfx->width(), gfx->height() - 20, RGB565_BLACK);
@@ -160,19 +177,61 @@ bool issFetchAndDisplay(const char *userLat, const char *userLon) {
   gfx->drawFastHLine(0, y, gfx->width(), 0x2104);
   y += 5;
 
-  // ── Visibility explanation ────────────────────────────────────────────────
-  gfx->setTextColor(visColor);
-  gfx->setCursor(4, y);
-  if      (vis == "visible")  gfx->print("ISS visible from your location now!");
-  else if (vis == "daylight") gfx->print("ISS in daylight (not in Earth shadow)");
-  else                        gfx->print("ISS in Earth shadow (eclipsed)");
+  // ── Elevation + Radio window ──────────────────────────────────────────────
+  // Elevation angle
+  uint16_t elevColor = (elevDeg >= 0.0f) ? 0x07E0 : 0x7BEF;
+  gfx->setTextColor(elevColor);
+  char elBuf[44];
+  if (elevDeg >= 0.0f)
+    snprintf(elBuf, sizeof(elBuf), "Elev: +%.1f%c  above horizon", elevDeg, 176);
+  else
+    snprintf(elBuf, sizeof(elBuf), "Elev: %.1f%c  below horizon",  elevDeg, 176);
+  gfx->setCursor(4, y); gfx->print(elBuf);
   y += 12;
 
-  gfx->setTextColor(0x7BEF);
+  // Divider + Radio section header
+  gfx->drawFastHLine(0, y, gfx->width(), 0x2104);
+  y += 4;
+  gfx->setTextColor(0xFD20);
+  gfx->setTextSize(1);
   gfx->setCursor(4, y);
-  gfx->print("Updates every 30 seconds");
+  gfx->print("[ 145.800 MHz FM  ISS Radio ]");
+  y += 12;
 
-  Serial.printf("[ISS] Lat=%.2f Lon=%.2f Alt=%.0fkm Dist=%.0fkm Bear=%.0f Vis=%s\n",
-                issLat, issLon, issAlt, slantDist, brng, vis.c_str());
+  if (elevDeg >= 0.0f) {
+    // Radio is receivable right now
+    uint16_t rc = (elevDeg > 10.0f) ? 0x07E0 : 0xFFE0;  // green>10°, yellow 0-10°
+    gfx->setTextColor(rc);
+    gfx->setTextSize(2);
+    gfx->setCursor(4, y);
+    gfx->print(elevDeg > 10.0f ? "RADIO ACTIVE" : "WEAK SIGNAL");
+    y += 20;
+    gfx->setTextSize(1);
+    gfx->setTextColor(rc);
+    char sb[48];
+    snprintf(sb, sizeof(sb), "%s  |  %s",
+             elevDeg > 10.0f ? "Strong signal" : "Marginal copy",
+             approaching ? "approaching" : "receding");
+    gfx->setCursor(4, y); gfx->print(sb);
+  } else {
+    // Radio offline
+    gfx->setTextColor(0x7BEF);
+    gfx->setTextSize(1);
+    char ob[44];
+    snprintf(ob, sizeof(ob), "Offline  (%s)",
+             approaching ? "approaching horizon" : "receding");
+    gfx->setCursor(4, y); gfx->print(ob);
+    y += 12;
+    gfx->setTextColor(0x4208);
+    gfx->setCursor(4, y);
+    gfx->print("Passes ~every 90 min. Tune 145.800");
+    y += 11;
+    gfx->setCursor(4, y);
+    gfx->print("Best window: 5-10 min above 10");
+    gfx->print((char)176);
+  }
+
+  Serial.printf("[ISS] Lat=%.2f Lon=%.2f Alt=%.0fkm Dist=%.0fkm Bear=%.0f Elev=%.1f Vis=%s\n",
+                issLat, issLon, issAlt, slantDist, brng, elevDeg, vis.c_str());
   return true;
 }
