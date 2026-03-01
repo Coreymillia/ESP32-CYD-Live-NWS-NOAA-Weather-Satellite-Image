@@ -59,6 +59,7 @@ static int  wc_camera_idx    = 0;
 static char wc_lat[16]       = "";
 static char wc_lon[16]       = "";
 static bool wc_has_settings  = false;  // true if SSID was previously saved
+static bool wc_use_metric    = true;   // true = km/km/h, false = mi/mph
 
 // ---------------------------------------------------------------------------
 // Portal state
@@ -78,6 +79,7 @@ static void wcLoadSettings() {
   String lat  = prefs.getString("lat",  "");
   String lon  = prefs.getString("lon",  "");
   wc_camera_idx = prefs.getInt("camera", 0);
+  wc_use_metric = prefs.getBool("metric", true);
   prefs.end();
 
   wc_camera_idx = constrain(wc_camera_idx, 0, NUM_MODES - 1);
@@ -114,6 +116,15 @@ static void wcSaveCameraIndex(int camera) {
   prefs.putInt("camera", camera);
   prefs.end();
   wc_camera_idx = camera;
+}
+
+// Persist only the unit preference (called when toggling km/mph via touch)
+static void wcSaveMetric(bool metric) {
+  Preferences prefs;
+  prefs.begin("weathercore", false);
+  prefs.putBool("metric", metric);
+  prefs.end();
+  wc_use_metric = metric;
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,8 @@
 #include "NWSForecast.h"
 #include "SpaceWeather.h"
 #include "ISSTracker.h"
+#include <SPI.h>
+#include <XPT2046_Touchscreen.h>
 
 /*******************************************************************************
  * Display setup - CYD (Cheap Yellow Display) proven working config
@@ -37,6 +39,12 @@ Arduino_GFX *gfx = new Arduino_ILI9341(bus, GFX_NOT_DEFINED /* RST */, 1 /* rota
 /*******************************************************************************
  * End of display setup
  ******************************************************************************/
+
+// Touch controller (XPT2046 on VSPI, CYD standard wiring)
+#define TOUCH_CS   33
+#define TOUCH_IRQ  36
+SPIClass touchSPI(VSPI);
+XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
 
 // Print a status line on screen (top bar, overwrites previous)
 void showStatus(const char *msg) {
@@ -88,6 +96,11 @@ void setup() {
 
   // Boot button is GPIO 0 (active LOW)
   pinMode(0, INPUT_PULLUP);
+
+  // Touch init (XPT2046 on VSPI — CLK=25, MISO=39, MOSI=32, CS=33, IRQ=36)
+  touchSPI.begin(25, 39, 32, TOUCH_CS);
+  ts.begin(touchSPI);
+  ts.setRotation(1);
 
   // Load saved settings from flash
   wcLoadSettings();
@@ -142,25 +155,95 @@ void setup() {
 #define CLOCK_INTERVAL     (60 * 1000)       // redraw timestamp every minute
 unsigned long last_update    = 0;
 unsigned long last_clock     = 0;
+static unsigned long lastTouchMs = 0;
+
+// Display the current mode name in the status bar
+static void showModeStatus() {
+  if      (wc_camera_idx == NWS_FORECAST_MODE)  showStatus("Mode: NWS Forecast");
+  else if (wc_camera_idx == NWS_ALERTS_MODE)    showStatus("Mode: NWS Alerts");
+  else if (wc_camera_idx == SPACE_WEATHER_MODE) showStatus("Mode: Space Weather");
+  else if (wc_camera_idx == ISS_MODE)           showStatus("Mode: ISS Tracker");
+  else {
+    char msg[48];
+    snprintf(msg, sizeof(msg), "Camera: %s", CAMERAS[wc_camera_idx].name);
+    showStatus(msg);
+  }
+}
 
 void loop() {
-  // Short press on BOOT (GPIO 0) cycles through all camera views + NWS Forecast.
+  // ── BOOT button: short press = cycle mode, long press (≥1.5s) = setup portal ──
   if (digitalRead(0) == LOW) {
     delay(50); // debounce
     if (digitalRead(0) == LOW) {
-      wc_camera_idx = (wc_camera_idx + 1) % NUM_MODES;
-      wcSaveCameraIndex(wc_camera_idx);
-      if      (wc_camera_idx == NWS_FORECAST_MODE)  showStatus("Mode: NWS Forecast");
-      else if (wc_camera_idx == NWS_ALERTS_MODE)    showStatus("Mode: NWS Alerts");
-      else if (wc_camera_idx == SPACE_WEATHER_MODE) showStatus("Mode: Space Weather");
-      else if (wc_camera_idx == ISS_MODE)           showStatus("Mode: ISS Tracker");
-      else {
-        char msg[48];
-        snprintf(msg, sizeof(msg), "Camera: %s", CAMERAS[wc_camera_idx].name);
-        showStatus(msg);
-      }
-      last_update = 0; // trigger immediate fetch
+      unsigned long pressStart = millis();
       while (digitalRead(0) == LOW) delay(10); // wait for release
+      unsigned long held = millis() - pressStart;
+
+      if (held >= 1500) {
+        // Long press → reopen captive portal to change WiFi/settings
+        showStatus("Opening setup... hold until AP appears");
+        WiFi.disconnect(true);
+        delay(500);
+        wcInitPortal();
+        while (!portalDone) { wcRunPortal(); delay(5); }
+        wcClosePortal();
+        gfx->fillScreen(RGB565_BLACK);
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(wc_wifi_ssid, wc_wifi_pass);
+        showStatus("Reconnecting to WiFi...");
+        unsigned long t = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - t < 30000) delay(500);
+        if (WiFi.status() == WL_CONNECTED) showStatus("WiFi connected!");
+        last_update = 0;
+      } else {
+        // Short press → next mode
+        wc_camera_idx = (wc_camera_idx + 1) % NUM_MODES;
+        wcSaveCameraIndex(wc_camera_idx);
+        showModeStatus();
+        last_update = 0;
+      }
+    }
+  }
+
+  // ── Touch: left 1/3 = prev, middle 1/3 = toggle km/mph, right 1/3 = next ──
+  if (ts.tirqTouched() && ts.touched()) {
+    if (millis() - lastTouchMs > 400) {
+      lastTouchMs = millis();
+      TS_Point p = ts.getPoint();
+      int tx = map(p.x, 200, 3900, 0, 320);
+      tx = constrain(tx, 0, 319);
+
+      if (tx < 107) {
+        // Left third → previous mode
+        wc_camera_idx = (wc_camera_idx + NUM_MODES - 1) % NUM_MODES;
+        wcSaveCameraIndex(wc_camera_idx);
+        showModeStatus();
+        last_update = 0;
+      } else if (tx > 213) {
+        // Right third → next mode
+        wc_camera_idx = (wc_camera_idx + 1) % NUM_MODES;
+        wcSaveCameraIndex(wc_camera_idx);
+        showModeStatus();
+        last_update = 0;
+      } else {
+        // Middle third → toggle km / mph (applies to ISS Tracker)
+        wc_use_metric = !wc_use_metric;
+        wcSaveMetric(wc_use_metric);
+        showStatus(wc_use_metric ? "Units: Metric (km/km/h)" : "Units: Imperial (mi/mph)");
+        if (wc_camera_idx == ISS_MODE) last_update = 0;
+      }
+    }
+  }
+
+  // ── WiFi auto-reconnect ───────────────────────────────────────────────────
+  if (WiFi.status() != WL_CONNECTED) {
+    showStatus("WiFi lost - reconnecting...");
+    WiFi.reconnect();
+    unsigned long t = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t < 15000) delay(500);
+    if (WiFi.status() == WL_CONNECTED) {
+      showStatus("WiFi reconnected!");
+      delay(500);
     }
   }
 
@@ -207,7 +290,7 @@ void loop() {
     } else if (wc_camera_idx == ISS_MODE) {
       // ── ISS Live Tracker ─────────────────────────────────────────────────
       showStatus("Fetching ISS position...");
-      if (issFetchAndDisplay(wc_lat, wc_lon)) {
+      if (issFetchAndDisplay(wc_lat, wc_lon, wc_use_metric)) {
         last_update = millis();
         drawTimestamp();
       } else {
@@ -251,6 +334,15 @@ void loop() {
   if (last_update != 0 && millis() - last_clock > CLOCK_INTERVAL) {
     drawTimestamp();
     last_clock = millis();
+  }
+
+  // ── Countdown bar: 1px line at y=239 draining over currentInterval ────────
+  {
+    unsigned long elapsed = (last_update == 0) ? 0 : (millis() - last_update);
+    if (elapsed > currentInterval) elapsed = currentInterval;
+    int barW = (int)((long)(currentInterval - elapsed) * gfx->width() / currentInterval);
+    gfx->drawFastHLine(0,    gfx->height() - 1, barW,               0x001F);        // blue remaining
+    gfx->drawFastHLine(barW, gfx->height() - 1, gfx->width() - barW, RGB565_BLACK); // black elapsed
   }
 
   delay(50);

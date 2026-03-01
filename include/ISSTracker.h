@@ -82,7 +82,7 @@ static float iss_prev_slant = -1.0f;
 // API: https://api.wheretheiss.at/v1/satellites/25544  (free, no key, HTTPS)
 // Returns true on success.
 // ---------------------------------------------------------------------------
-bool issFetchAndDisplay(const char *userLat, const char *userLon) {
+bool issFetchAndDisplay(const char *userLat, const char *userLon, bool useMetric) {
   String body = iss_https_get("https://api.wheretheiss.at/v1/satellites/25544");
   if (body.isEmpty()) return false;
 
@@ -108,6 +108,14 @@ bool issFetchAndDisplay(const char *userLat, const char *userLon) {
   bool  approaching = (iss_prev_slant > 0.0f && slantDist < iss_prev_slant);
   iss_prev_slant   = slantDist;
 
+  // Unit conversions
+  const float KM_TO_MI = 0.621371f;
+  float dispDist = useMetric ? slantDist : slantDist * KM_TO_MI;
+  float dispAlt  = useMetric ? issAlt    : issAlt    * KM_TO_MI;
+  float dispVel  = useMetric ? issVel    : issVel    * KM_TO_MI;
+  const char *distUnit = useMetric ? "km"   : "mi";
+  const char *velUnit  = useMetric ? "km/h" : "mph";
+
   // ── Draw ──────────────────────────────────────────────────────────────────
   gfx->fillRect(0, 20, gfx->width(), gfx->height() - 20, RGB565_BLACK);
 
@@ -116,7 +124,9 @@ bool issFetchAndDisplay(const char *userLat, const char *userLon) {
   gfx->setTextColor(0x07FF);
   gfx->setTextSize(1);
   gfx->setCursor(4, 22);
-  gfx->print("ISS Live Tracker");
+  char titleBuf[24];
+  snprintf(titleBuf, sizeof(titleBuf), "ISS Tracker [%s]", distUnit);
+  gfx->print(titleBuf);
 
   // Visibility badge in top-right: VISIBLE=green, DAYLIGHT=yellow, ECLIPSED=gray
   String visUpper = vis;
@@ -146,7 +156,7 @@ bool issFetchAndDisplay(const char *userLat, const char *userLon) {
 
   // Altitude + velocity
   gfx->setTextColor(0xFD20);
-  snprintf(buf, sizeof(buf), "Alt: %.0f km    Vel: %.0f km/h", issAlt, issVel);
+  snprintf(buf, sizeof(buf), "Alt: %.0f %s    Vel: %.0f %s", dispAlt, distUnit, dispVel, velUnit);
   gfx->setCursor(4, y); gfx->print(buf);
   y += 14;
 
@@ -157,7 +167,7 @@ bool issFetchAndDisplay(const char *userLat, const char *userLon) {
   // ── Distance from user ────────────────────────────────────────────────────
   gfx->setTextColor(0xFFE0);
   gfx->setTextSize(2);
-  snprintf(buf, sizeof(buf), "%.0f km", slantDist);
+  snprintf(buf, sizeof(buf), "%.0f %s", dispDist, distUnit);
   gfx->setCursor(4, y); gfx->print(buf);
   y += 22;
 

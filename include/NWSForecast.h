@@ -39,13 +39,13 @@ static String nws_https_get(const String &url) {
 }
 
 // Word-wrap and draw text on the display. Returns the y position after the last line.
-static int nws_draw_wrapped(const String &text, int x, int y, int maxW, uint16_t color) {
+static int nws_draw_wrapped(const String &text, int x, int y, int maxW, uint16_t color, int maxY = 228) {
   gfx->setTextColor(color);
   gfx->setTextSize(1);
   const int charW = 6, lineH = 10;
   int charsPerLine = maxW / charW;
   int pos = 0, len = text.length();
-  while (pos < len && y < 228) {
+  while (pos < len && y < maxY) {
     int end = pos + charsPerLine;
     if (end >= len) {
       end = len;
@@ -93,9 +93,11 @@ bool nwsFetchAndDisplay(const char *lat, const char *lon) {
   if (forecastBody.isEmpty()) return false;
 
   // Filter to only parse the fields we need (reduces JsonDocument size)
-  StaticJsonDocument<128> filter;
+  StaticJsonDocument<256> filter;
   filter["properties"]["periods"][0]["name"] = true;
   filter["properties"]["periods"][0]["detailedForecast"] = true;
+  filter["properties"]["periods"][1]["name"] = true;
+  filter["properties"]["periods"][1]["detailedForecast"] = true;
 
   DynamicJsonDocument forecastDoc(8192);
   if (deserializeJson(forecastDoc, forecastBody, DeserializationOption::Filter(filter))) {
@@ -103,23 +105,35 @@ bool nwsFetchAndDisplay(const char *lat, const char *lon) {
     return false;
   }
 
-  String periodName       = forecastDoc["properties"]["periods"][0]["name"]            | "Unknown";
-  String detailedForecast = forecastDoc["properties"]["periods"][0]["detailedForecast"] | "No forecast available.";
+  String p0Name   = forecastDoc["properties"]["periods"][0]["name"]            | "Unknown";
+  String p0Detail = forecastDoc["properties"]["periods"][0]["detailedForecast"] | "No forecast available.";
+  String p1Name   = forecastDoc["properties"]["periods"][1]["name"]            | "";
+  String p1Detail = forecastDoc["properties"]["periods"][1]["detailedForecast"] | "";
   forecastDoc.clear();
 
-  Serial.printf("[NWS] %s: %s\n", periodName.c_str(), detailedForecast.c_str());
+  Serial.printf("[NWS] %s: %s\n", p0Name.c_str(), p0Detail.c_str());
 
   // ── Draw on screen ────────────────────────────────────────────────────────
   gfx->fillRect(0, 20, gfx->width(), gfx->height() - 20, RGB565_BLACK);
 
-  // Period name in cyan at text size 2
+  // Period 0 name in cyan at text size 2
   gfx->setTextColor(0x07FF);
   gfx->setTextSize(2);
   gfx->setCursor(4, 25);
-  gfx->print(periodName);
+  gfx->print(p0Name);
 
-  // Detailed forecast word-wrapped below, white text size 1
-  nws_draw_wrapped(detailedForecast, 4, 45, gfx->width() - 8, RGB565_WHITE);
+  // Period 0 detailed forecast word-wrapped, capped at y=113
+  nws_draw_wrapped(p0Detail, 4, 44, gfx->width() - 8, RGB565_WHITE, 113);
+
+  // Period 1 (if available)
+  if (p1Name.length() > 0) {
+    gfx->drawFastHLine(0, 115, gfx->width(), 0x2104);
+    gfx->setTextColor(0xFFE0);  // yellow
+    gfx->setTextSize(1);
+    gfx->setCursor(4, 119);
+    gfx->print(p1Name);
+    nws_draw_wrapped(p1Detail, 4, 130, gfx->width() - 8, 0xC618, 228);  // light gray
+  }
 
   return true;
 }
