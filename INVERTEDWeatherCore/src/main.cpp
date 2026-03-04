@@ -24,6 +24,10 @@
  * ILI9341 320x240 landscape via hardware SPI
  ******************************************************************************/
 #include <Arduino_GFX_Library.h>
+
+#define DEVICE_NAME      "INVERTEDWeatherCore"
+#define FIRMWARE_VERSION "1.0.0"
+#include "CYDIdentity.h"
 #include "Portal.h"
 
 #define GFX_BL 21  // CYD backlight pin
@@ -147,6 +151,7 @@ void setup() {
     dots++;
   }
   showStatus("WiFi connected!");
+  identityBegin();
   // Sync UTC time via NTP — no user config needed
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   delay(600);
@@ -172,6 +177,7 @@ static void showModeStatus() {
 }
 
 void loop() {
+  identityHandle();
   // ── BOOT button: short press = cycle mode, long press (≥1.5s) = setup portal ──
   if (digitalRead(0) == LOW) {
     delay(50); // debounce

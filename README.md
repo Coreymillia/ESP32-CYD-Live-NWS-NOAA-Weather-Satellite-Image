@@ -198,6 +198,28 @@ The original **WeatherSatelliteImage** Arduino sketch that inspired this project
 
 ---
 
+## CYDPiAlert Integration
+
+This firmware includes [`CYDIdentity.h`](include/CYDIdentity.h) and serves a `GET /identify` endpoint on port 80. Any device running this firmware will be automatically discovered by **[CYDPiAlert-ESPID](https://github.com/coreymillia/CYDPiAlert-ESPID)'s Mode 9 — ESP Devices**, which scans your network for microcontrollers and displays their name, firmware version, RSSI, uptime, and IP.
+
+The identity response looks like:
+
+```json
+{
+  "name": "WeatherCore",
+  "mac": "xx:xx:xx:xx:xx:xx",
+  "version": "1.0.0",
+  "uptime_s": 3600,
+  "rssi": -45,
+  "last_fetch": 0,
+  "errors": 0
+}
+```
+
+No configuration needed — it activates automatically once the device is connected to WiFi. The `INVERTEDWeatherCore` variant identifies itself as `"INVERTEDWeatherCore"`.
+
+---
+
 ## License
 
 This project builds on open-source work. Please respect the licenses of the upstream projects listed above.
