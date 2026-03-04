@@ -200,7 +200,7 @@ The original **WeatherSatelliteImage** Arduino sketch that inspired this project
 
 ## CYDPiAlert Integration
 
-This firmware includes [`CYDIdentity.h`](include/CYDIdentity.h) and serves a `GET /identify` endpoint on port 80. Any device running this firmware will be automatically discovered by **[CYDPiAlert-ESPID](https://github.com/coreymillia/CYDPiAlert-ESPID)'s Mode 9 — ESP Devices**, which scans your network for microcontrollers and displays their name, firmware version, RSSI, uptime, and IP.
+This firmware includes [`CYDIdentity.h`](include/CYDIdentity.h) and serves a `GET /identify` endpoint on port 80. Any device running this firmware will be automatically discovered by **[CYDPiAlert-ESPID](https://github.com/Coreymillia/CYD-ESP32-Pi-Alert-Monitor/tree/main/CYDPiAlert-ESPID) Mode 9 — ESP Devices**, which scans your network for microcontrollers and displays their name, firmware version, RSSI, uptime, and IP.
 
 The identity response looks like:
 
