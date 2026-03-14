@@ -16,6 +16,7 @@
 #include "NWSForecast.h"
 #include "SpaceWeather.h"
 #include "ISSTracker.h"
+#include "SunMoon.h"
 #include <SPI.h>
 #include <XPT2046_Touchscreen.h>
 
@@ -169,6 +170,7 @@ static void showModeStatus() {
   else if (wc_camera_idx == NWS_ALERTS_MODE)    showStatus("Mode: NWS Alerts");
   else if (wc_camera_idx == SPACE_WEATHER_MODE) showStatus("Mode: Space Weather");
   else if (wc_camera_idx == ISS_MODE)           showStatus("Mode: ISS Tracker");
+  else if (wc_camera_idx == SUN_MOON_MODE)      showStatus("Mode: Sun & Moon");
   else {
     char msg[48];
     snprintf(msg, sizeof(msg), "Camera: %s", CAMERAS[wc_camera_idx].name);
@@ -259,6 +261,7 @@ void loop() {
   else if (wc_camera_idx == NWS_FORECAST_MODE)  currentInterval = NWS_UPDATE_INTERVAL;
   else if (wc_camera_idx == SPACE_WEATHER_MODE) currentInterval = SW_UPDATE_INTERVAL;
   else if (wc_camera_idx == ISS_MODE)           currentInterval = ISS_UPDATE_INTERVAL;
+  else if (wc_camera_idx == SUN_MOON_MODE)      currentInterval = SUN_MOON_INTERVAL;
   else                                          currentInterval = UPDATE_INTERVAL;
 
   if ((last_update == 0) || ((millis() - last_update) > currentInterval)) {
@@ -303,6 +306,16 @@ void loop() {
       } else {
         showStatus("ISS fetch failed - retrying in 30s");
         last_update = millis() - ISS_UPDATE_INTERVAL + 30000;
+      }
+    } else if (wc_camera_idx == SUN_MOON_MODE) {
+      // ── Sun & Moon Phase ─────────────────────────────────────────────────
+      showStatus("Fetching Sun & Moon data...");
+      if (sunMoonFetchAndDisplay(wc_lat, wc_lon)) {
+        last_update = millis();
+        drawTimestamp();
+      } else {
+        showStatus("Sun/Moon fetch failed - retrying in 60s");
+        last_update = millis() - SUN_MOON_INTERVAL + 60000UL;
       }
     } else {
       // ── GOES satellite image mode ──────────────────────────────────────────

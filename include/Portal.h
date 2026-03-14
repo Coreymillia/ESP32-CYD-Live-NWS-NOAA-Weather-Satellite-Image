@@ -48,7 +48,8 @@ static const int NUM_CAMERAS = 8;
 #define NWS_ALERTS_MODE      (NUM_CAMERAS + 1)  //  9
 #define SPACE_WEATHER_MODE   (NUM_CAMERAS + 2)  // 10
 #define ISS_MODE             (NUM_CAMERAS + 3)  // 11
-#define NUM_MODES            (NUM_CAMERAS + 4)  // 12 total
+#define SUN_MOON_MODE        (NUM_CAMERAS + 4)  // 12
+#define NUM_MODES            (NUM_CAMERAS + 5)  // 13 total
 
 // ---------------------------------------------------------------------------
 // Persisted settings (populated by wcInitPortal / wcLoadSettings)
@@ -237,6 +238,9 @@ static void wcHandleRoot() {
   html += "<option value='" + String(ISS_MODE) + "'";
   if (wc_camera_idx == ISS_MODE) html += " selected";
   html += ">&#128752; ISS Live Tracker</option>";
+  html += "<option value='" + String(SUN_MOON_MODE) + "'";
+  if (wc_camera_idx == SUN_MOON_MODE) html += " selected";
+  html += ">&#9728;&#127769; Sun &amp; Moon Phase</option>";
   html += "</select>"
     "<label>Latitude (for NWS / Space Weather / ISS):</label>"
     "<input type='text' name='lat' value='";
@@ -284,6 +288,7 @@ static void wcHandleSave() {
   else if (camera == NWS_ALERTS_MODE)    modeName = "NWS Alerts";
   else if (camera == SPACE_WEATHER_MODE) modeName = "Space Weather";
   else if (camera == ISS_MODE)           modeName = "ISS Live Tracker";
+  else if (camera == SUN_MOON_MODE)      modeName = "Sun & Moon Phase";
   else                                   modeName = CAMERAS[camera].name;
   String html = "<html><head><meta charset='UTF-8'>"
     "<style>body{background:#001a33;color:#00ccff;font-family:Arial;"
